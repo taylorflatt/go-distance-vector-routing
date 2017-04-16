@@ -14,13 +14,13 @@ import (
 )
 
 var netMap = &globalNetworkMap{
-	lock:    sync.RWMutex{},
-	routers: make(map[string]chan map[string]*neighbor),
+	lock: sync.RWMutex{},
+	ch:   make(map[string]chan map[string]*neighbor),
 }
 
 type globalNetworkMap struct {
-	lock    sync.RWMutex
-	routers map[string]chan map[string]*neighbor
+	lock sync.RWMutex
+	ch   map[string]chan map[string]*neighbor
 }
 
 type router struct {
@@ -69,9 +69,9 @@ func createRouter(id string, neighbors []neighbor) {
 	defer netMap.lock.Unlock()
 
 	// Add the router to the global list.
-	netMap.routers[id] = r.ch
+	netMap.ch[id] = r.ch
 
-	fmt.Println(netMap.routers)
+	fmt.Println(netMap.ch)
 
 	// Run the router threads.
 	go routerThread(*r)
@@ -142,10 +142,14 @@ func (r *router) sendToNeighbors() {
 	for id, n1 := range r.table {
 		if id == n1.name && id != r.id {
 			fmt.Println(r.id + " is sending his table to : ")
-			fmt.Println(netMap.routers[id])
-			netMap.routers[id] <- r.table
+			fmt.Println(netMap.ch[id])
+			netMap.ch[id] <- r.table
 		}
 	}
+}
+
+func fastestPath(source, destination string) {
+
 }
 
 func routerThread(r router) {
