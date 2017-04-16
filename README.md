@@ -1,4 +1,4 @@
-# Distance Vector Routing (DVR)
+# Distance Vector Routing (DVR) [![Build Status](https://travis-ci.org/taylorflatt/go-distance-vector-routing.svg?branch=master)](https://travis-ci.org/taylorflatt/go-distance-vector-routing)
 DVR and a fastest path algorithm implemented using Go channels.
 
 ## Usage
