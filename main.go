@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -99,7 +101,7 @@ func (ot *router) UpdateTable(nt map[string]*neighbor) {
 			// If our cost is larger than the incoming cost, update our table.
 			if ot.table[destination].cost > cost {
 				ot.table[destination].cost = cost
-				ot.table[destination].name = nextCost.name
+				ot.table[destination].name = nID
 				updated = true
 			}
 		} else {
@@ -120,7 +122,7 @@ func (ot *router) UpdateTable(nt map[string]*neighbor) {
 
 func (r *router) tableInfo() {
 
-	if r.id == "B" {
+	if r.id == "E" {
 		log.Println("		" + r.id + "		")
 		log.Println("Destination | Next | Cost")
 		for id, n := range r.table {
@@ -165,38 +167,51 @@ func routerThread(r router) {
 			r.tableInfo()
 		}
 	}
+}
 
+func parseInput(file *os.File) {
+
+	scanner := bufio.NewScanner(file)
+	neighbors := make(map[string][]neighbor)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		res := strings.Split(line, " ")
+		cost, _ := strconv.ParseInt(res[2], 10, 32)
+		t := int32(cost)
+
+		slice, ok := neighbors[res[0]]
+
+		// If the slice doesn't exist, initialize the slice.
+		if !ok {
+
+			var newSlice []neighbor
+			neighbors[res[0]] = newSlice
+		}
+
+		// Add the new neighbor to the router's slice.
+		slice = append(slice, neighbor{
+			name: res[1],
+			cost: t,
+		})
+		neighbors[res[0]] = slice
+	}
+
+	// Create each router with their list of given neighbors.
+	for r, n := range neighbors {
+		go createRouter(r, n)
+	}
 }
 
 func main() {
 
-	var neighbors []neighbor
-	var neighbors2 []neighbor
-	var neighbors3 []neighbor
+	f, err := os.Open("routers.txt")
 
-	neighbors = append(neighbors, neighbor{
-		name: "B",
-		cost: 5,
-	})
+	if err != nil {
+		panic(err)
+	}
 
-	neighbors = append(neighbors, neighbor{
-		name: "C",
-		cost: 12,
-	})
-
-	neighbors2 = append(neighbors2, neighbor{
-		name: "A",
-		cost: 5,
-	})
-
-	neighbors3 = append(neighbors3, neighbor{
-		name: "A",
-		cost: 12,
-	})
-
-	go createRouter("A", neighbors)
-	go createRouter("B", neighbors2)
-	go createRouter("C", neighbors3)
+	parseInput(f)
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
