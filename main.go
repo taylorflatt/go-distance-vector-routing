@@ -13,21 +13,30 @@ import (
 	"time"
 )
 
+var watchTable string
+
 var netMap = &globalNetworkMap{
-	lock: sync.RWMutex{},
-	ch:   make(map[string]chan map[string]*neighbor),
+	lock:    sync.RWMutex{},
+	ch:      make(map[string]chan routerTable),
+	routers: make(map[string]*router),
+}
+
+type routerTable struct {
+	id    string
+	table map[string]*neighbor
 }
 
 type globalNetworkMap struct {
-	lock sync.RWMutex
-	ch   map[string]chan map[string]*neighbor
+	lock    sync.RWMutex
+	ch      map[string]chan routerTable
+	routers map[string]*router
 }
 
 type router struct {
 	id    string
 	lock  sync.RWMutex
 	log   string
-	ch    chan map[string]*neighbor
+	ch    chan routerTable
 	table map[string]*neighbor
 }
 
@@ -37,8 +46,6 @@ type neighbor struct {
 }
 
 func createRouter(id string, neighbors []neighbor) {
-
-	log.Println("Entered createRouter")
 
 	// Construct an empty routing table for the router.
 	rt := make(map[string]*neighbor)
@@ -61,23 +68,33 @@ func createRouter(id string, neighbors []neighbor) {
 	r := &router{
 		id:    id,
 		lock:  sync.RWMutex{},
-		ch:    make(chan map[string]*neighbor, 100),
+		ch:    make(chan routerTable, 100),
 		table: rt,
 	}
 
-	netMap.lock.Lock()
-	defer netMap.lock.Unlock()
+	//netMap.lock.Lock()
+	//defer netMap.lock.Unlock()
 
 	// Add the router to the global list.
 	netMap.ch[id] = r.ch
 
-	fmt.Println(netMap.ch)
+	netMap.routers[id] = r
+
+	//fmt.Println(id)
+	//fmt.Println(netMap.routers[id].ch)
 
 	// Run the router threads.
 	go routerThread(*r)
 }
 
-func (ot *router) UpdateTable(nt map[string]*neighbor) {
+func (ot *router) UpdateTable(nt routerTable) {
+
+	// Need lock here (was netmap lock)
+
+	//netMap.routers[nt.id].lock.Lock()
+	//defer netMap.routers[nt.id].lock.Unlock()
+	//netMap.lock.Lock()
+	//defer netMap.lock.Lock()
 
 	ot.lock.Lock()
 	defer ot.lock.Unlock()
@@ -88,15 +105,15 @@ func (ot *router) UpdateTable(nt map[string]*neighbor) {
 	// 		1) Add a new value to our table we didn't already have.
 	// 		2) Update a value with a faster path (change the hop).
 
-	for val, tNextCost := range nt {
+	for val, tNextCost := range nt.table {
 		if val == tNextCost.name && tNextCost.cost == 0 {
 			nID = val
 		}
 	}
 
-	for destination, nextCost := range nt {
+	for destination, nextCost := range nt.table {
 		_, ok := ot.table[destination]
-		cost := nextCost.cost + nt[ot.id].cost
+		cost := nextCost.cost + nt.table[ot.id].cost
 		if ok {
 			// If our cost is larger than the incoming cost, update our table.
 			if ot.table[destination].cost > cost {
@@ -122,7 +139,7 @@ func (ot *router) UpdateTable(nt map[string]*neighbor) {
 
 func (r *router) tableInfo() {
 
-	if r.id == "E" {
+	if r.id == watchTable {
 		log.Println("		" + r.id + "		")
 		log.Println("Destination | Next | Cost")
 		for id, n := range r.table {
@@ -134,39 +151,62 @@ func (r *router) tableInfo() {
 
 func (r *router) sendToNeighbors() {
 
+	// Need lock here (was netmap lock)
+	//r.lock.RLock()
+	//defer r.lock.RUnlock()
+
+	netMap.lock.RLock()
+	defer netMap.lock.RUnlock()
+
 	// Need to wait for other routers to begin listening on their channels
 	// prior to sending the updated tables.
-	log.Println("Inside sendToNeighbors")
 	time.Sleep(25 * time.Millisecond)
 
 	for id, n1 := range r.table {
 		if id == n1.name && id != r.id {
-			fmt.Println(r.id + " is sending his table to : ")
-			fmt.Println(netMap.ch[id])
-			netMap.ch[id] <- r.table
+
+			msg := routerTable{
+				id:    r.id,
+				table: r.table,
+			}
+
+			netMap.ch[id] <- msg
 		}
 	}
 }
 
 func fastestPath(source, destination string) {
 
+	// Need lock here (was netmap lock)
+	netMap.lock.RLock()
+	defer netMap.lock.RUnlock()
+
+	r := netMap.routers[source]
+	path := source
+	cost := r.table[destination].cost
+
+	for {
+		// BUG: This prints twice for some reason.
+		if source == destination {
+			fmt.Println(path + " with delay = " + strconv.Itoa(int(cost)))
+			return
+		}
+
+		// Next hop to get to the destination.
+		source = r.table[destination].name
+		r = netMap.routers[source]
+		path = path + " -> " + source
+	}
 }
 
 func routerThread(r router) {
 
-	log.Println("INITIAL TABLE INFORMATION")
-	r.tableInfo()
-
 	// Send my table to all my neighbors.
 	go r.sendToNeighbors()
-
-	fmt.Println(r.id + "'s table is ")
-	fmt.Println(r.ch)
 
 	for {
 		select {
 		case update := <-r.ch:
-			log.Println("I see the update.")
 			r.UpdateTable(update)
 			r.tableInfo()
 		}
@@ -175,6 +215,7 @@ func routerThread(r router) {
 
 func parseInput(file *os.File) {
 
+	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	neighbors := make(map[string][]neighbor)
 
@@ -215,7 +256,29 @@ func main() {
 		panic(err)
 	}
 
+	r := bufio.NewScanner(os.Stdin)
+
+	fmt.Print("Which table would you like to watch update?: ")
+	r.Scan()
+	watchTable = r.Text()
+
 	parseInput(f)
+	//fmt.Println("Routers are initializing...")
+	time.Sleep(3 * time.Second)
+	//fmt.Println("Routers initialized...")
+
+	fmt.Println()
+	fmt.Println("Compute the fastest path")
+	fmt.Println("-----------------------------------")
+	fmt.Print("Enter the source router: ")
+	r.Scan()
+	s := r.Text()
+	fmt.Print("Enter the destination router: ")
+	r.Scan()
+	d := r.Text()
+	fastestPath(s, d)
+
+	fastestPath("A", "E")
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
