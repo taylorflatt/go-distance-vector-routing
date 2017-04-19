@@ -2,11 +2,13 @@
 *.o
 *.a
 *.so
+dvr
 
 # Folders
 _obj
 _test
 .vscode
+
 
 # Architecture specific extensions/prefixes
 *.[568vq]
@@ -23,3 +25,4 @@ _testmain.go
 *.exe
 *.test
 *.prof
+debug
