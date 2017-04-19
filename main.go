@@ -263,10 +263,7 @@ func main() {
 	watchTable = r.Text()
 
 	parseInput(f)
-	//fmt.Println("Routers are initializing...")
 	time.Sleep(3 * time.Second)
-	//fmt.Println("Routers initialized...")
-
 	fmt.Println()
 	fmt.Println("Compute the fastest path")
 	fmt.Println("-----------------------------------")
@@ -276,13 +273,14 @@ func main() {
 	fmt.Print("Enter the destination router: ")
 	r.Scan()
 	d := r.Text()
+	fmt.Println()
 	fastestPath(s, d)
-
-	fastestPath("A", "E")
+	fmt.Println()
+	fmt.Println()
+	fmt.Println("Press ctrl+c to exit...")
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 
 	<-ch
-
 }
