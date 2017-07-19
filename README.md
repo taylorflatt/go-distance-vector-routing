@@ -1,5 +1,5 @@
 # Distance Vector Routing (DVR) [![Build Status](https://travis-ci.org/taylorflatt/go-distance-vector-routing.svg?branch=master)](https://travis-ci.org/taylorflatt/go-distance-vector-routing)
-DVR and a fastest path algorithm implemented using Go channels.
+DVR and a fastest path algorithm implemented using Go channels. Created by [Taylor Flatt](https://github.com/taylorflatt) and [Arjun Yelamanchili](https://github.com/arjunyel)
 
 ## Usage
 * Get the source code by running `git clone github.com/taylorflatt/remote-shell`
